@@ -1,0 +1,6 @@
+flask
+flask-cors
+ultralytics
+label-studio
+label-studio-sdk
+torch
