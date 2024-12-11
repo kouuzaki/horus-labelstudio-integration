@@ -4,21 +4,23 @@ server_status = {
     "current_epoch": 0,
     "total_epochs": 0,
     "message": "",
-    "start_time": None,
-    "end_time": None,
-    "realtime_output": {
-        "current_epoch": 0,
-        "total_epochs": 0,
-        "progress": 0,
-        "epoch_progress": 0,
-        "gpu_memory": None,
-        "box_loss": None,
-        "cls_loss": None,
-        "dfl_loss": None,
-        "instances": None,
-        "size": None,
-        "show": False
-    },
+    "start_time": 0,
+    "end_time": 0,
+    "realtime_output": [
+        {
+            "current_epoch": 0,
+            "total_epochs": 0,
+            "progress": 0,
+            "epoch_progress": 0,
+            "gpu_memory": 0,
+            "box_loss": 0,
+            "cls_loss": 0,
+            "dfl_loss": 0,
+            "instances": 0,
+            "size": 0,
+            "show": False
+        }    
+    ],
     "training_results": {
         "status": "idle",  # Status training, default idle
         "progress": 0,  # Progress bar (0-100)

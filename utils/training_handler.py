@@ -25,19 +25,7 @@ def train_model_subprocess(log_queue):
                 "current_epoch": 0,
                 "epoch_progress": 0,
                 "end_time": None,
-                "realtime_output": {
-                    "current_epoch": 0,
-                    "total_epochs": 0,
-                    "progress": 0,
-                    "epoch_progress": 0,
-                    "gpu_memory": None,
-                    "box_loss": None,
-                    "cls_loss": None,
-                    "dfl_loss": None,
-                    "instances": None,
-                    "size": None,
-                    "show": False,
-                }
+                "realtime_output": [] 
             }
         )
 
@@ -90,7 +78,7 @@ def train_model_subprocess(log_queue):
             "yolo", "train", 
             f"data={yaml_path}", 
             f"model={os.path.abspath(os.path.join(base_dir, '../model/yolov8n.pt'))}",
-            "epochs=10", 
+            "epochs=100", 
             "lr0=0.01",
             "patience=2",
             "device=cuda:0",
@@ -119,21 +107,34 @@ def train_model_subprocess(log_queue):
                 
                 print(parsed_data)
                 # Update total epochs detected
+                    # Update total epochs detected
                 if parsed_data.get("status") == "total_epochs_detected":
                     server_status["total_epochs"] = parsed_data["total_epochs"]
-                    
-                
+
                 # Update progress and epoch details
                 if parsed_data.get("show"):
+                    server_status["realtime_output"].append({
+                        "current_epoch": parsed_data["current_epoch"],
+                        "total_epochs": parsed_data.get("total_epochs", server_status["total_epochs"]),
+                        "progress": parsed_data["progress"],
+                        "epoch_progress": parsed_data.get("epoch_progress", 0),
+                        "gpu_memory": parsed_data.get("gpu_memory", 0),
+                        "box_loss": parsed_data.get("box_loss", 0),
+                        "cls_loss": parsed_data.get("cls_loss", 0),
+                        "dfl_loss": parsed_data.get("dfl_loss", 0),
+                        "instances": parsed_data.get("instances", 0),
+                        "size": parsed_data.get("size", 0),
+                        "show": True
+                    })
+
                     server_status.update({
                         "progress": parsed_data["progress"],
                         "current_epoch": parsed_data["current_epoch"],
-                        "total_epochs": parsed_data.get("total_epochs", server_status["total_epochs"]),
-                        "realtime_output": parsed_data,
+                        "total_epochs": parsed_data.get("total_epochs", server_status["total_epochs"])
                     })
 
-                print('Server Status', server_status) 
-
+                    # Print the updated server status to show real-time output
+                    print('Server Status:', server_status)
         # Wait for process to complete
         process.stdout.close()
         return_code = process.wait()
@@ -148,6 +149,7 @@ def train_model_subprocess(log_queue):
                 json_file.write(json_output)
             
             print('Json file created', json_output)
+            print("Server status 2", server_status)
             
             
             # # Process images
