@@ -4,11 +4,13 @@ import shutil
 import zipfile
 import subprocess
 import traceback
+import json
 from utils.label_studio_handler import label_studio_export_processing_task
 from utils.yolo_parser import parse_yolo_output
 from utils.server_status import server_status
 from utils.parse_csv_to_json import parse_csv_to_json
 from utils.image_processing import image_processing
+
 
 def train_model_subprocess(log_queue):
     """
@@ -25,14 +27,16 @@ def train_model_subprocess(log_queue):
                 "current_epoch": 0,
                 "epoch_progress": 0,
                 "end_time": None,
-                "realtime_output": [] 
+                "realtime_output": [],
             }
         )
 
         # Step 1: Set up static training directory
         base_dir = os.path.dirname(__file__)  # Get the current script's directory
-        training_dir = os.path.join(base_dir, "../training")  # Relative path to training directory
-        
+        training_dir = os.path.join(
+            base_dir, "../training"
+        )  # Relative path to training directory
+
         # If the training directory exists, delete it to avoid conflicts
         if os.path.exists(training_dir):
             shutil.rmtree(training_dir)
@@ -75,10 +79,11 @@ def train_model_subprocess(log_queue):
 
         # Step 5: Prepare training command
         train_command = [
-            "yolo", "train", 
-            f"data={yaml_path}", 
+            "yolo",
+            "train",
+            f"data={yaml_path}",
             f"model={os.path.abspath(os.path.join(base_dir, '../model/yolov8n.pt'))}",
-            "epochs=100", 
+            "epochs=100",
             "lr0=0.01",
             "patience=2",
             "device=cuda:0",
@@ -97,73 +102,94 @@ def train_model_subprocess(log_queue):
         )
 
         # Step 7: Process real-time output
-        for line in iter(process.stdout.readline, ''):
+        for line in iter(process.stdout.readline, ""):
             # Add line to log queue
             log_queue.put(line.strip())
 
             # Parse line for progress
             parsed_data = parse_yolo_output(line.strip())
             if parsed_data:
-                
                 print(parsed_data)
+
                 # Update total epochs detected
-                    # Update total epochs detected
                 if parsed_data.get("status") == "total_epochs_detected":
                     server_status["total_epochs"] = parsed_data["total_epochs"]
 
                 # Update progress and epoch details
                 if parsed_data.get("show"):
-                    server_status["realtime_output"].append({
-                        "current_epoch": parsed_data["current_epoch"],
-                        "total_epochs": parsed_data.get("total_epochs", server_status["total_epochs"]),
-                        "progress": parsed_data["progress"],
-                        "epoch_progress": parsed_data.get("epoch_progress", 0),
-                        "gpu_memory": parsed_data.get("gpu_memory", 0),
-                        "box_loss": parsed_data.get("box_loss", 0),
-                        "cls_loss": parsed_data.get("cls_loss", 0),
-                        "dfl_loss": parsed_data.get("dfl_loss", 0),
-                        "instances": parsed_data.get("instances", 0),
-                        "size": parsed_data.get("size", 0),
-                        "show": True
-                    })
+                    current_epoch = parsed_data["current_epoch"]
 
-                    server_status.update({
-                        "progress": parsed_data["progress"],
-                        "current_epoch": parsed_data["current_epoch"],
-                        "total_epochs": parsed_data.get("total_epochs", server_status["total_epochs"])
-                    })
+                    # Get current realtime_output or initialize empty list
+                    realtime_output = server_status.get("realtime_output", [])
 
-                    # Print the updated server status to show real-time output
-                    print('Server Status:', server_status)
-        # Wait for process to complete
-        process.stdout.close()
-        return_code = process.wait()
-                
-        if return_code == 0:
-            # Parse the CSV file to JSON
-            csv_file = os.path.join(training_dir, "runs/detect/train", "results.csv")
-            json_output = parse_csv_to_json(csv_file)
-            
-            # Save the JSON output
-            with open(os.path.join(training_dir, "runs/detect/train", "results.json"), "w") as json_file:
-                json_file.write(json_output)
-            
-            print('Json file created', json_output)
-            print("Server status 2", server_status)
-            
-            
-            # # Process images
-            image_processing(training_dir, json_output)        
-        
-        else:
-            # Update status after failed training
-            server_status.update({
-            "status": "error",
-            "end_time": time.time(),
-            "progress": 100,
-            "current_epoch": server_status["current_epoch"],
-            "message": "Training failed",
-            })
+                    # Remove any existing entries for the current epoch
+                    realtime_output = [
+                        entry
+                        for entry in realtime_output
+                        if entry["current_epoch"] != current_epoch
+                    ]
+
+                    # Add the new data for this epoch
+                    realtime_output.append(parsed_data)
+
+                    # Update server status with the new data
+                    server_status.update(
+                        {
+                            "progress": parsed_data["progress"],
+                            "current_epoch": current_epoch,
+                            "total_epochs": parsed_data.get(
+                                "total_epochs", server_status["total_epochs"]
+                            ),
+                            "epoch_progress": parsed_data.get("epoch_progress", 0),
+                            "gpu_memory": parsed_data.get("gpu_memory", 0),
+                            "box_loss": parsed_data.get("box_loss", 0),
+                            "cls_loss": parsed_data.get("cls_loss", 0),
+                            "dfl_loss": parsed_data.get("dfl_loss", 0),
+                            "instances": parsed_data.get("instances", 0),
+                            "size": parsed_data.get("size", 0),
+                            "realtime_output": realtime_output,
+                        }
+                    )
+
+                    # Save the server status to a JSON file
+                    status_json_path = os.path.join(training_dir, "server_status.json")
+                    with open(status_json_path, "w") as status_json_file:
+                        json.dump(server_status, status_json_file, indent=4)
+
+                    # Wait for process to complete
+                    process.stdout.close()
+                    return_code = process.wait()
+
+                    if return_code == 0:
+                        # Parse the CSV file to JSON
+                        csv_file = os.path.join(
+                            training_dir, "runs/detect/train", "results.csv"
+                        )
+                        json_output = parse_csv_to_json(csv_file)
+
+                        # Save the JSON output
+                        with open(
+                            os.path.join(
+                                training_dir, "runs/detect/train", "results.json"
+                            ),
+                            "w",
+                        ) as json_file:
+                            json_file.write(json_output)
+
+                        # # Process images
+                        image_processing(training_dir, json_output)
+
+                    else:
+                        # Update status after failed training
+                        server_status.update(
+                            {
+                                "status": "error",
+                                "end_time": time.time(),
+                                "progress": 100,
+                                "current_epoch": server_status["current_epoch"],
+                                "message": "Training failed",
+                            }
+                        )
 
     except Exception as e:
         error_msg = f"Training Error: {str(e)}\n{traceback.format_exc()}"
