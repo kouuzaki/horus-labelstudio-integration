@@ -22,10 +22,17 @@ server_status = {
         }    
     ],
     "training_results": {
-        "status": "idle",  # Status training, default idle
+        "status": "idle",  # idle, running, completed
         "progress": 0,  # Progress bar (0-100)
-        "total_epochs": 0,  # Total epoch yang dijalankan
-        "training_time_seconds": 0.0,  # Total waktu training
+        "model": {
+            "name": "",
+            "path": "",
+            "size_bytes": 0,
+            "available": False,
+            "error": ""
+        },
+        "total_epochs": 0,  # Total epochs
+        "training_time_seconds": 0.0,  # Training time run
         "best_epoch": {
             "epoch": 0,
             "metrics/mAP50-95(B)": 0.0,

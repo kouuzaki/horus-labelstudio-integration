@@ -1,76 +1,66 @@
-import traceback
 import re
+import traceback
+import logging
 
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
 
 def parse_yolo_output(line):
     """
-    Parse YOLO training output to extract current epoch and progress percentage.
+    Parse YOLO training output dengan penanganan yang lebih robust.
+    
+    Args:
+        line (str): Baris output dari proses training YOLO
+    
+    Returns:
+        dict: Informasi parsing atau None jika tidak ada data yang ditemukan
     """
-    print(f"Processing line: {line}")  # Debug log for the received line
+    # Debug: Log setiap baris yang masuk
+    logger.debug(f"Processing line: {line}")
 
-    # Pola untuk mendeteksi header Epoch
-    epoch_header_pattern = re.compile(r'Epoch\s+GPU_mem\s+box_loss\s+cls_loss\s+dfl_loss\s+Instances\s+Size')
-    
-    # Pola untuk progress dari epoch
-    epoch_progress_pattern = re.compile(r'(\d+)/(\d+).*\s+(\d+)%\|')
-    
-    # Pola untuk mendeteksi GPU memory
-    gpu_memory_pattern = re.compile(r'(\d+\.\d+G)')
-    
-    #Pola untuk mendeteksi Box Loss
-    box_loss_pattern = re.compile(r'\s+(\d+\.\d+)\s+\d+\.\d+\s+\d+\.\d+')
-    
-    #Pola untuk mendeteksi Class Loss
-    cls_loss_pattern = re.compile(r'\s+\d+\.\d+\s+(\d+\.\d+)\s+\d+\.\d+')
-    
-    #Pola untuk mendeteksi DFL Loss
-    dfl_loss_pattern = re.compile(r'\s+\d+\.\d+\s+\d+\.\d+\s+(\d+\.\d+)')
-    
-    #Pola untuk mendeteksi Instances
-    instances_pattern = re.compile(r'(\d+)')
-    
-    #Pola untuk mendeteksi Size
-    size_pattern = re.compile(r'(\d+)')
+    # Regex patterns yang lebih fleksibel
+    patterns = {
+        'epoch_header': r'Epoch\s+GPU_mem\s+box_loss\s+cls_loss\s+dfl_loss\s+Instances\s+Size',
+        'epoch_progress': r'(?P<current_epoch>\d+)/(?P<total_epochs>\d+)\s*(?P<gpu_mem>\d+\.\d+G)?\s*(?P<box_loss>\d+\.\d+)?\s*(?P<cls_loss>\d+\.\d+)?\s*(?P<dfl_loss>\d+\.\d+)?\s*(?P<instances>\d+)?\s*(?P<size>\d+)?.*?(?P<progress>\d+)%',
+    }
 
     try:
-        # Periksa apakah baris ini adalah header tabel Epoch
-        if epoch_header_pattern.search(line):
-            print("Header tabel Epoch ditemukan.")
+        # Cek apakah ini header tabel Epoch
+        if re.search(patterns['epoch_header'], line):
+            logger.info("Header tabel Epoch ditemukan.")
             return {"status": "header_detected"}
-        
-        # Cek progress epoch
-        progress_match = epoch_progress_pattern.search(line)
-        if progress_match:
-            current_epoch = int(progress_match.group(1))
-            total_epochs = int(progress_match.group(2))
-            epoch_progress = int(progress_match.group(3))
-            
-            # Ekstrak informasi tambahan
-            gpu_mem = gpu_memory_pattern.search(line)
-            box_loss = box_loss_pattern.search(line)
-            cls_loss = cls_loss_pattern.search(line)
-            dfl_loss = dfl_loss_pattern.search(line)
-            instances = instances_pattern.search(line)
-            size = size_pattern.search(line)
 
-            # Hitung kontribusi progress dari epoch saat ini
+        # Coba parsing progress epoch
+        progress_match = re.search(patterns['epoch_progress'], line)
+        if progress_match:
+            # Ekstrak data dengan aman, menggunakan .get() untuk menghindari error
+            data = progress_match.groupdict()
+            
+            # Konversi tipe data
+            current_epoch = int(data['current_epoch']) if data['current_epoch'] else 0
+            total_epochs = int(data['total_epochs']) if data['total_epochs'] else 100
+            epoch_progress = int(data.get('progress') or 0)
+
+            # Hitung progress keseluruhan
             total_progress = ((current_epoch - 1) / total_epochs * 100) + (epoch_progress / total_epochs)
 
+            # Konstruksi response dengan konversi tipe yang aman
             return {
-            "current_epoch": current_epoch,
-            "total_epochs": total_epochs,
-            "progress": round(min(total_progress, 100), 2),
-            "epoch_progress": epoch_progress,
-            "gpu_memory": gpu_mem.group(1) if gpu_mem else None,
-            "box_loss": float(box_loss.group(1)) if box_loss else None,
-            "cls_loss": float(cls_loss.group(1)) if cls_loss else None,
-            "dfl_loss": float(dfl_loss.group(1)) if dfl_loss else None,
-            "instances": int(instances.group(1)) if instances else None,
-            "size": int(size.group(1)) if size else None,
-            "show": True 
+                "current_epoch": current_epoch,
+                "total_epochs": total_epochs,
+                "progress": round(min(total_progress, 100), 2),
+                "epoch_progress": epoch_progress,
+                "gpu_memory": data.get('gpu_mem'),
+                "box_loss": float(data['box_loss']) if data.get('box_loss') else None,
+                "cls_loss": float(data['cls_loss']) if data.get('cls_loss') else None,
+                "dfl_loss": float(data['dfl_loss']) if data.get('dfl_loss') else None,
+                "instances": int(data['instances']) if data.get('instances') else None,
+                "size": int(data['size']) if data.get('size') else None,
+                "show": True
             }
-    
+
     except Exception as e:
-        print(f"Parsing error: {e}\n{traceback.format_exc()}")
+        logger.error(f"Parsing error: {e}\n{traceback.format_exc()}")
+        return None
 
     return None

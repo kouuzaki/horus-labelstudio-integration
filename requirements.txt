@@ -4,3 +4,4 @@ ultralytics
 label-studio
 label-studio-sdk
 torch
+python-dotenv

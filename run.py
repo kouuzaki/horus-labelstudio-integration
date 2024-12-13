@@ -1,7 +1,7 @@
 import logging
 from app import create_app
-from config import Config
-
+from config.config import Config
+import os
 
 def run_server():
     """
