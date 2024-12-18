@@ -5,3 +5,4 @@ label-studio
 label-studio-sdk
 torch
 python-dotenv
+psycopg2-binary

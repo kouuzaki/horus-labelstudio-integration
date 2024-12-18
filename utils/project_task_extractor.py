@@ -7,7 +7,7 @@ from config.config import Config
 from utils.server_status import server_status
 
 db_connection = psycopg2.connect(
-  database=Config.LABEL_STUDIO_DB_HOSTNAME, 
+  database=Config.LABEL_STUDIO_DB_NAME, 
   user=Config.LABEL_STUDIO_DB_USERNAME, 
   password=Config.LABEL_STUDIO_DB_PASSWORD, 
   host=Config.LABEL_STUDIO_DB_HOSTNAME, 
