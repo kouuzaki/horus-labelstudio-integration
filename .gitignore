@@ -2,3 +2,5 @@ training
 yolo11n.pt
 export_progress.log
 .env
+.venv
+__pycache__

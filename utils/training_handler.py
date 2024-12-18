@@ -1,19 +1,21 @@
-import time
-import os
-import shutil
-import zipfile
-import subprocess
-import traceback
 import json
 import logging
+import os
+import shutil
+import subprocess
+import time
+import traceback
+import zipfile
+
 from utils.label_studio_handler import label_studio_export_processing_task
-from utils.yolo_parser import parse_yolo_output
-from utils.server_status import server_status
 from utils.parse_csv_to_json import parse_csv_to_json
+from utils.project_task_extractor import extract_project_tasks
+from utils.server_status import server_status
 from utils.training_result_processing import training_result_processing
+from utils.yolo_parser import parse_yolo_output
 
 
-def train_model_subprocess(log_queue, id_project_train, id_project_val):
+def train_model_subprocess(log_queue, id_project_train, id_project_val, labels):
     """
     Train YOLO model using subprocess, ensuring the training directory is overwritten for every new training session.
     """
@@ -37,10 +39,8 @@ def train_model_subprocess(log_queue, id_project_train, id_project_val):
         )
 
         # Step 1: Set up static training directory
-        base_dir = os.path.dirname(__file__)  # Get the current script's directory
-        training_dir = os.path.join(
-            base_dir, "../training"
-        )  # Relative path to training directory
+        root_dir = os.getcwd()
+        training_dir = os.path.join(root_dir, "training")  # Relative path to training directory
 
         # If the training directory exists, delete it to avoid conflicts
         if os.path.exists(training_dir):
@@ -48,12 +48,7 @@ def train_model_subprocess(log_queue, id_project_train, id_project_val):
             os.makedirs(training_dir, exist_ok=True)
 
        # Step 2: Export data from Label Studio with train and val projects
-        try:
-            train_export, val_export = label_studio_export_processing_task(
-                id_project_train,  
-                id_project_val
-            )
-            
+        try:            
             # Check if id_project_train or id_project_val is empty
             if not id_project_train or not id_project_val:
                 error_message = "Both id_project_train and id_project_val must be provided."
@@ -71,7 +66,6 @@ def train_model_subprocess(log_queue, id_project_train, id_project_val):
                 log_queue.put(error_message)
                 return
             
-            # Extract the exported data
             train_extract_path = os.path.join(training_dir, "train_extracted")
             val_extract_path = os.path.join(training_dir, "val_extracted")
             
@@ -79,20 +73,13 @@ def train_model_subprocess(log_queue, id_project_train, id_project_val):
             os.makedirs(val_extract_path, exist_ok=True)
             
             # Extract train data
-            with zipfile.ZipFile(train_export, "r") as zip_ref:
-                zip_ref.extractall(train_extract_path)
-                logger.info(f"Extracted train data to: {train_extract_path}")
+            extract_project_tasks(project_id=id_project_train, labels=labels, extract_path=train_extract_path)
+            logger.info(f"Extracted train data to: {train_extract_path}")
             
             # Extract val data
-            with zipfile.ZipFile(val_export, "r") as zip_ref:
-                zip_ref.extractall(val_extract_path)
-                logger.info(f"Extracted val data to: {val_extract_path}")
+            extract_project_tasks(project_id=id_project_val, labels=labels, extract_path=val_extract_path)
+            logger.info(f"Extracted val data to: {val_extract_path}")
 
-            # Delete zip files after successful extraction
-            os.remove(train_export)
-            os.remove(val_export)
-            logger.info("Deleted zip files after extraction")
-            
         except Exception as e:
             logger.error(f"Error during data export and extraction: {str(e)}")
             raise
@@ -155,7 +142,7 @@ def train_model_subprocess(log_queue, id_project_train, id_project_val):
             "yolo",
             "train",
             f"data={yaml_path}",
-            f"model={os.path.abspath(os.path.join(base_dir, '../model/yolov8n.pt'))}",
+            f"model={os.path.abspath(os.path.join(root_dir, 'model','yolov8n.pt'))}",
             "epochs=100",
             "lr0=0.01",
             "patience=2",

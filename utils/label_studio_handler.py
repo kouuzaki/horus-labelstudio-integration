@@ -1,11 +1,12 @@
-import os
 import logging
+import os
 import time
 import zipfile
-import shutil
-from utils.server_status import server_status
+
 from label_studio_sdk.client import LabelStudio
+
 from config.config import Config
+from utils.server_status import server_status
 
 
 def label_studio_export_processing_task(
@@ -39,8 +40,8 @@ def label_studio_export_processing_task(
             base_url=Config.LABEL_STUDIO_URL, api_key=Config.LABEL_STUDIO_API_KEY
         )
 
-        base_dir = os.path.dirname(__file__)
-        training_dir = os.path.join(base_dir, "../training")
+        root_dir = os.getcwd()
+        training_dir = os.path.join(root_dir, "training")
         os.makedirs(training_dir, exist_ok=True)
 
         train_export_path = os.path.join(training_dir, "train_export.zip")
