@@ -69,5 +69,6 @@ def extract_project_tasks(project_id, labels, extract_path):
         "message": "Export process completed successfully",
       }
     )
+    return True
   except Exception as e:
     server_status.update({"status": "error", "message": str(e)})

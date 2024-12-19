@@ -66,18 +66,23 @@ def train_model_subprocess(log_queue, id_project_train, id_project_val, labels):
                 log_queue.put(error_message)
                 return
             
+            subfolders = ["images", "labels"] 
             train_extract_path = os.path.join(training_dir, "train_extracted")
             val_extract_path = os.path.join(training_dir, "val_extracted")
             
             os.makedirs(train_extract_path, exist_ok=True)
             os.makedirs(val_extract_path, exist_ok=True)
             
+            for subfolder in subfolders:
+                os.makedirs(os.path.join(train_extract_path, subfolder), exist_ok=True)
+                os.makedirs(os.path.join(val_extract_path, subfolder), exist_ok=True)
+            
             # Extract train data
-            extract_project_tasks(project_id=id_project_train, labels=labels, extract_path=train_extract_path)
+            train_extract_result = extract_project_tasks(project_id=id_project_train, labels=labels, extract_path=train_extract_path)
             logger.info(f"Extracted train data to: {train_extract_path}")
             
             # Extract val data
-            extract_project_tasks(project_id=id_project_val, labels=labels, extract_path=val_extract_path)
+            val_extract_result = extract_project_tasks(project_id=id_project_val, labels=labels, extract_path=val_extract_path)
             logger.info(f"Extracted val data to: {val_extract_path}")
 
         except Exception as e:
